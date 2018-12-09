@@ -1,0 +1,126 @@
+!!!! HEADER !!!!
+FINI
+/CLEAR
+/PREP7
+NACSINIT
+
+! ----------------------- !
+! User Defined Parameters:
+! ----------------------- !
+d = 0.02
+l = 0.06
+s = 0.01
+r = 0.03
+w = 0.01
+dx = 0.0005  
+elemType = linear elements
+tol = dx/5
+
+! for r_core we use an array of length 4
+*dim,r_core_array,,4
+
+! to initialize the array, simple assign values
+r_core_array(1) = 1e-2,1.5e-2,2e-2,2.5e-2
+
+
+! ----------------------- !
+! Mesh generation with loop:
+! ----------------------- !
+
+! we use a do loop here
+! the syntax is as follows
+! *do, variable, starting value of variable, end value of variable, increment of variable
+*do,kk,1,4,1
+	
+	! in each iteration pick a different value of the array
+	! access to array elements as in matlab, i.e. round brackets, 1 = first entry
+	r_core = r_core_array(kk)
+
+	! important for later: 
+	! save all current parameter to a file called params
+	PARSAV,all,params
+! ----------------------- !
+	! Create Geometry:
+	! ----------------------- !
+	RECTNG,r,r+w,d,d+l		!copper coil
+	RECTING,0,r_core,d+s,d+s+l
+	
+	RECTING,0,r+w+d,0,d		!air
+	RECTING,0,r+w+d,d+s+l,d+l+d	!air
+	RECTING,r+w,r+w+d,d,d+s+l	!air
+	RECTING,0,r,d,d+s		!air
+	RECTING,r_core,r,d+s,d+l	!air
+	RECTING,r-core,r+w,d+l,d+s+l	!air
+
+	ASEL, all
+	AGLUE, all
+	
+	
+
+	! ----------------------- !
+	! Create Mesh:
+	! ----------------------- !
+	
+	LSEL, all
+	LESIZE, all, dx
+	SETELEMS, 'quadr',''
+	
+	ASEL, all
+	AMESH, all
+
+	ASEL,s,loc,x,r,r+w
+	ASEL,r,loc,y,d,d+l
+	CM,coil,area
+
+	ASEL,s,loc,x,0,r_core
+	ASEL,r,loc,y,d+s,d+s+l
+	CM,core,area
+	
+	ASEL, all
+	ASEL,u,,,coil
+	ASEL,u,,,core
+	CM,air,area
+	
+	REGION,'coilregion', 'coil'
+	REGION,'coreregion', 'core'
+	REGION,'airregion', 'air'
+	
+
+	GROUP, 'coilsurface', 'coillines'
+	GROUP, 'coresurface', 'corelines'
+	
+	! ----------------------- !
+	! Write NACS Files:
+	! ----------------------- !
+	
+	
+	
+	! in order to not override the same file in each iteration, we of course
+	! have to adapt the name; via %r_core*1000%, ansys will replace
+	! r_core in the string by the current value of r_core 
+	! e.g. if r_core = 2.5e-2, the resulting mesh name will be
+	! 'Coil_rCore_25.nmf' (.nmf is added automatically)
+	WRITEMODEL,'Coil_rCore_%r_core*1000%'
+
+
+	! ----------------------- !
+	! Clear database and delete mesh before the next iteration
+	! ----------------------- !
+
+	! the following commands are crucial to allow the script to produce
+	! a valid mesh file in each iteration, do not change this part;
+	! the commands basically restart the ansys session, then load the
+	! defined set of parameter (including the ones of the do loop) and
+	! continues with the loop
+	FINI
+	QCLEAR
+	/prep7
+	NACSINIT
+
+	! restore the starting parameters including the iteration variable kk
+	PARRES,new,params
+
+! end loop
+*enddo
+
+
